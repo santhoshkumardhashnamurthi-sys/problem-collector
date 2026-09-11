@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme {
+  --color-artix-ink: #101114;
+  --color-artix-ivory: #F7F4EA;
+  --color-artix-lime: #C8FF4D;
+  --color-artix-orange: #FF9F43;
+  --color-artix-grey: #E8E6DE;
+  --color-artix-navy: #07131A;
+}
+
+:root {
+  --background: #F7F4EA;
+  --foreground: #101114;
+}
+
+body {
+  background-color: #F7F4EA;
+  color: #101114;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: #C8FF4D;
+  color: #101114;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #101114;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2d34;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C8FF4D;
+}
+
+/* Radiant glow utilities */
+.glow-lime {
+  box-shadow: 0 0 35px -5px rgba(200, 255, 77, 0.4);
+}
+.glow-lime-subtle {
+  box-shadow: 0 0 20px -3px rgba(200, 255, 77, 0.25);
+}
+.glow-orange {
+  box-shadow: 0 0 30px -5px rgba(255, 159, 67, 0.35);
+}
+
+/* Glassmorphism cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(16, 17, 20, 0.08);
+}
+.dark-glass-card {
+  background: rgba(16, 17, 20, 0.75);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Pedestal lime ring animation */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.98);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.98);
+    opacity: 0.7;
+  }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 3.5s ease-in-out infinite;
+}
+
+/* Floating animation */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float-slow 4s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float-slow 4.5s ease-in-out 1.5s infinite;
+}
