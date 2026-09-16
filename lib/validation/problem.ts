@@ -34,20 +34,31 @@ export const FREQUENCIES = [
   'Rarely',
 ] as const;
 
-export const problemSubmissionSchema = z.object({
-  raw_description: z
-    .string()
-    .min(10, 'Please provide at least 10 characters describing the problem')
-    .max(2500, 'Description must be under 2500 characters'),
-  category: z.string().min(1, 'Please select a category'),
-  user_type: z.string().min(1, 'Please select who faces this problem'),
-  frequency: z.string().min(1, 'Please select how often this happens'),
-  location: z.string().optional(),
-  city: z.string().optional(),
-  area: z.string().optional(),
-  pincode: z.string().optional(),
-  is_anonymous: z.boolean().default(true),
-  submitter_id: z.string().optional(),
-});
+export const problemSubmissionSchema = z
+  .object({
+    raw_description: z.string().optional(),
+    problem: z.string().optional(),
+    category: z.string().min(1, 'Please select a category'),
+    user_type: z.string().optional(),
+    frequency: z.string().optional(),
+    location: z.string().optional(),
+    city: z.string().optional(),
+    area: z.string().optional(),
+    pincode: z.string().optional(),
+    name: z.string().optional(),
+    contact: z.string().optional(),
+    is_anonymous: z.boolean().default(true),
+    submitter_id: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const desc = data.raw_description || data.problem;
+      return typeof desc === 'string' && desc.trim().length >= 10;
+    },
+    {
+      message: 'Please provide at least 10 characters describing the problem',
+      path: ['raw_description'],
+    }
+  );
 
 export type ProblemSubmissionFormData = z.infer<typeof problemSubmissionSchema>;

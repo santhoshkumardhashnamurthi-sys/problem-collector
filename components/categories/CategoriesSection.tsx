@@ -169,25 +169,25 @@ export function CategoriesSection({ categories, stats }: CategoriesSectionProps)
 
                 <h3 className="text-base sm:text-lg font-bold text-[#101114] leading-snug">
                   From Real Problems <br />
-                  <span className="text-emerald-800">to a Smarter Database</span>
+                  <span className="text-emerald-800">to Smarter Insights</span>
                 </h3>
 
                 <p className="text-xs text-neutral-700 leading-relaxed">
-                  Every submission is stored in a structured database, categorized for deeper insights, better analysis, and bigger opportunities.
+                  Every submission is stored in a structured problem repository, categorized for deeper insights, better analysis, and bigger opportunities.
                 </p>
               </div>
 
               <div className="pt-4 flex items-center justify-between border-t border-emerald-200/50 mt-4 relative z-10">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-900">
                   <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Realtime PostgreSQL + AI</span>
+                  <span>Excel Storage + AI</span>
                 </div>
 
                 <Link
                   href="/explore"
                   className="text-xs font-bold text-[#101114] hover:text-emerald-800 flex items-center gap-1 transition-colors"
                 >
-                  Explore DB <ArrowRight className="w-3 h-3" />
+                  Explore <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </div>

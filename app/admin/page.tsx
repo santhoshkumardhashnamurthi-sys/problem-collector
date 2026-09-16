@@ -113,11 +113,15 @@ export default function AdminDashboardPage() {
 
   const handleExport = (filter: string, category?: string) => {
     setExporting(filter);
-    let url = `/api/admin/export?filter=${filter}`;
-    if (category) {
-      url += `&category=${encodeURIComponent(category)}`;
+    if (filter === 'all' && !category) {
+      window.location.href = '/api/problems/export';
+    } else {
+      let url = `/api/admin/export?filter=${filter}`;
+      if (category) {
+        url += `&category=${encodeURIComponent(category)}`;
+      }
+      window.location.href = url;
     }
-    window.location.href = url;
     setTimeout(() => setExporting(null), 2000);
   };
 
@@ -172,14 +176,12 @@ export default function AdminDashboardPage() {
                     ? 'bg-emerald-100 text-emerald-800'
                     : 'bg-amber-100 text-amber-800'
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${dbHealth?.tablesExist ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                  {dbHealth?.tablesExist ? 'Supabase PostgreSQL Online' : 'Local Persistent JSON & Master Excel Active'}
+                  <span className={`w-1.5 h-1.5 rounded-full ${dbHealth?.connected !== false ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                  Excel File Storage Active
                 </span>
               </div>
               <p className="text-[11px] text-neutral-500 mt-0.5">
-                {dbHealth?.tablesExist
-                  ? 'All problems are seamlessly backed by remote Supabase and synchronized with Problem_Collector_Data.xlsx.'
-                  : 'Zero-crash mode active: Submissions save locally and to Problem_Collector_Data.xlsx. Run apply_to_supabase.sql to enable cloud sync.'}
+                All problems are persistently stored in data/problems.xlsx with zero database dependencies.
               </p>
             </div>
           </div>
@@ -196,7 +198,7 @@ export default function AdminDashboardPage() {
               className="px-3 py-2 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-neutral-800 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
               <CloudUpload className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync to Supabase'}
+              {syncing ? 'Verifying...' : 'Verify Excel Storage'}
             </button>
           </div>
         </div>
@@ -208,7 +210,7 @@ export default function AdminDashboardPage() {
             <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">
               {stats?.totalProblems || 0}
             </div>
-            <span className="text-[10px] text-neutral-400">Recorded in Supabase</span>
+            <span className="text-[10px] text-neutral-400">Stored in problems.xlsx</span>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
             <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Total Submitters</span>
@@ -274,7 +276,7 @@ export default function AdminDashboardPage() {
             <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-[#101114]">Recent Problems</h3>
-                <p className="text-[11px] text-neutral-500">Live records from Supabase database</p>
+                <p className="text-[11px] text-neutral-500">Live records from data/problems.xlsx</p>
               </div>
               <span className="text-xs text-neutral-500 font-mono">{problems.length} records</span>
             </div>
@@ -402,12 +404,12 @@ export default function AdminDashboardPage() {
                     <h3 className="text-base font-bold text-[#101114]">Problem Collector Excel Reports</h3>
                   </div>
                   <p className="text-xs text-neutral-500 mt-1">
-                    Export verified live database records to formatted Excel spreadsheets (<code className="font-mono text-[11px] bg-neutral-100 px-1 py-0.5 rounded">Problem_Collector_Data.xlsx</code>).
+                    Export verified problem records to formatted Excel spreadsheets (<code className="font-mono text-[11px] bg-neutral-100 px-1 py-0.5 rounded">data/problems.xlsx</code>).
                   </p>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200/60">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Supabase Live Synchronized
+                  Excel Storage Active
                 </div>
               </div>
 
@@ -520,8 +522,8 @@ export default function AdminDashboardPage() {
               Immutable log of admin actions, AI classifications, and cluster assignments.
             </p>
             <div className="space-y-2 font-mono text-xs text-neutral-600 bg-neutral-900 text-neutral-300 p-4 rounded-2xl">
-              <p>[SYSTEM_INIT] Supabase PostgreSQL connection pool initialized.</p>
-              <p>[RLS_ENFORCE] Row level security active on 12 tables.</p>
+              <p>[SYSTEM_INIT] Excel storage engine initialized at data/problems.xlsx.</p>
+              <p>[STORAGE_ENGINE] Zero-database file persistence active.</p>
               <p>[AI_PROVIDER] Heuristic and OpenAI hybrid provider registered.</p>
               <p>[REALTIME] SSE broadcast channel online.</p>
             </div>

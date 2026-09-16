@@ -12,8 +12,6 @@
     "@hookform/resolvers": "^3.10.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.49.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",

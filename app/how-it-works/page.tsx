@@ -25,7 +25,7 @@ export default function HowItWorksPage() {
       title: 'We Collect',
       subtitle: 'ARTIX securely stores the problem.',
       description:
-        'Every single authentic submission is validated, assigned an immutable unique reference code (e.g., ARTIX-2026-0001), and securely saved into a resilient PostgreSQL database.',
+        'Every single authentic submission is validated, assigned an immutable unique reference code (e.g., ARTIX-2026-0001), and securely saved into structured Excel storage.',
       icon: <Database className="w-6 h-6 text-white" />,
       accent: 'bg-[#101114]',
       details: [
