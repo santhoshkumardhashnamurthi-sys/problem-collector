@@ -1,6 +1,33 @@
 {
   "problems": [
     {
+      "id": "f1200000-0000-4000-a000-000000000012",
+      "problem_code": "ARTIX-000012",
+      "user_id": "user-000012-anon",
+      "submitter_name": "Anonymous (user-000012)",
+      "raw_description": "Crowded classrooms and poor ventilation make it difficult to concentrate during afternoon lectures.",
+      "normalized_problem": "Inadequate ventilation and overcrowding in academic lecture halls affecting focus",
+      "category_id": "11111111-1111-1111-1111-111111111101",
+      "category_name": "Education",
+      "subcategory": "Educational Infrastructure",
+      "user_type": "Students",
+      "frequency": "Daily",
+      "severity": "Moderate",
+      "city": "Coimbatore",
+      "area": null,
+      "pincode": null,
+      "is_anonymous": true,
+      "ai_processed": true,
+      "status": "active",
+      "created_at": "2026-09-27T17:00:00.000Z",
+      "updated_at": "2026-09-27T17:00:00.000Z",
+      "supports_count": 1,
+      "cluster_id": "cluster-infra-12",
+      "cluster_name": "Lecture Hall Infrastructure & Comfort",
+      "signal_score": 45,
+      "synced_to_supabase": false
+    },
+    {
       "id": "a01426bc-0a43-4333-9f92-03ac01369a71",
       "problem_code": "ARTIX-000011",
       "user_id": "832eb609-1e31-426e-99fc-7d45964d1b44",
@@ -294,6 +321,57 @@
   ],
   "clusters": [
     {
+      "id": "cluster-sdlcn2a8",
+      "name": "E-commerce returns take more than two weeks for small handicraft vendors",
+      "slug": "e-commerce-returns-take-more-than-two-weeks-for-small-handic",
+      "description": "Real-world reports regarding e-commerce returns take more than two weeks for small handicraft vendors",
+      "category_id": "11111111-1111-1111-1111-111111111103",
+      "category_name": "Business",
+      "report_count": 1,
+      "unique_contributors": 1,
+      "growth_rate": 5,
+      "signal_score": 30,
+      "top_locations": [
+        "Tirupur"
+      ],
+      "created_at": "2026-09-27T17:49:31.467Z",
+      "updated_at": "2026-09-27T17:49:31.467Z"
+    },
+    {
+      "id": "cluster-ybo2g3vh",
+      "name": "Electricity power fluctuations damage home refrigerators in rural subdistricts",
+      "slug": "electricity-power-fluctuations-damage-home-refrigerators-in-",
+      "description": "Real-world reports regarding electricity power fluctuations damage home refrigerators in rural subdistricts",
+      "category_id": "11111111-1111-1111-1111-111111111107",
+      "category_name": "Daily Life",
+      "report_count": 1,
+      "unique_contributors": 1,
+      "growth_rate": 5,
+      "signal_score": 37,
+      "top_locations": [
+        "Salem"
+      ],
+      "created_at": "2026-09-27T17:49:28.383Z",
+      "updated_at": "2026-09-27T17:49:28.383Z"
+    },
+    {
+      "id": "cluster-poy5wh1r",
+      "name": "Medical laboratory report delivery is delayed causing repeated doctor visits",
+      "slug": "medical-laboratory-report-delivery-is-delayed-causing-repeat",
+      "description": "Real-world reports regarding medical laboratory report delivery is delayed causing repeated doctor visits",
+      "category_id": "11111111-1111-1111-1111-111111111104",
+      "category_name": "Healthcare",
+      "report_count": 2,
+      "unique_contributors": 2,
+      "growth_rate": 6.2,
+      "signal_score": 42,
+      "top_locations": [
+        "Madurai"
+      ],
+      "created_at": "2026-09-27T17:46:01.816Z",
+      "updated_at": "2026-09-27T17:49:25.128Z"
+    },
+    {
       "id": "cluster-3rcp140m",
       "name": "My clg is very strict",
       "slug": "my-clg-is-very-strict",
@@ -432,7 +510,7 @@
       "description": "Learning barriers, academic accessibility, and curriculum inefficiencies",
       "icon": "GraduationCap",
       "created_at": "2026-09-10T09:10:45.457Z",
-      "count": 1
+      "count": 2
     },
     {
       "id": "11111111-1111-1111-1111-111111111102",
@@ -450,7 +528,7 @@
       "description": "Small business hurdles, compliance friction, supplier delays, and invoicing",
       "icon": "Briefcase",
       "created_at": "2026-09-10T09:10:45.460Z",
-      "count": 1
+      "count": 2
     },
     {
       "id": "11111111-1111-1111-1111-111111111104",
@@ -459,7 +537,7 @@
       "description": "Patient wait times, medical billing confusion, prescription access, and triage",
       "icon": "HeartPulse",
       "created_at": "2026-09-10T09:10:45.460Z",
-      "count": 1
+      "count": 2
     },
     {
       "id": "11111111-1111-1111-1111-111111111105",
@@ -486,7 +564,7 @@
       "description": "Household chores, neighborhood noise, package deliveries, and routine friction",
       "icon": "Home",
       "created_at": "2026-09-10T09:10:45.460Z",
-      "count": 0
+      "count": 1
     },
     {
       "id": "11111111-1111-1111-1111-111111111108",

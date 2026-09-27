@@ -13,7 +13,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { username: validUsername, password: validPassword } = getAdminCredentials();
+    const { username: validUsername, password: validPassword, isConfigured } = getAdminCredentials();
+
+    if (!isConfigured) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Admin credentials are not configured in Vercel environment variables. Please add ADMIN_USERNAME and ADMIN_PASSWORD in your Vercel project settings.',
+        },
+        { status: 503 }
+      );
+    }
 
     if (username !== validUsername || password !== validPassword) {
       return NextResponse.json(

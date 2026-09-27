@@ -21,6 +21,11 @@ import { INITIAL_CATEGORIES, DEMO_CLUSTERS, DEMO_PROBLEMS } from './seed-data';
 import { aiProvider } from '../ai/openai';
 import { findOrCreateCluster } from '../similarity/clustering';
 import { createAdminClient } from '../supabase/admin';
+import {
+  getNextProblemCodeAtomic,
+  persistProblemRecord,
+  getPersistentProblems,
+} from './persistent-store';
 
 /**
  * Executes a promise with an explicit timeout to prevent hanging on remote networks
@@ -202,7 +207,11 @@ export class ArtixRepository {
       }
     }
 
-    // Dynamic stats from local store
+    // Dynamic stats from persistent store
+    const persistent = await getPersistentProblems();
+    if (persistent && persistent.length > 0) {
+      store.problems = persistent;
+    }
     store.recalculateCounts();
     const activeProblems = store.problems.filter(p => p.status === 'active');
     const uniqueLocations = new Set(activeProblems.map(p => p.city).filter(Boolean));
@@ -395,7 +404,10 @@ export class ArtixRepository {
       }
     }
 
-    store.load();
+    const persistent = await getPersistentProblems();
+    if (persistent && persistent.length > 0) {
+      store.problems = persistent;
+    }
     let result = store.problems.filter(p => p.status === 'active');
 
     if (filters) {
@@ -555,22 +567,9 @@ export class ArtixRepository {
       ? `Anonymous (${submitterId.slice(0, 8)})`
       : `Contributor (${submitterId.slice(0, 8)})`;
 
-    // 2. Sequential Problem ID code
-    let nextCount = store.problems.length + 1;
-    if (supabase) {
-      try {
-        const { count } = await withTimeout(
-          supabase.from('problems').select('*', { count: 'exact', head: true }),
-          2000
-        );
-        if (typeof count === 'number' && count >= nextCount) {
-          nextCount = count + 1;
-        }
-      } catch {
-        // Fallback to local store length
-      }
-    }
-    const problemCode = `ARTIX-${String(nextCount).padStart(6, '0')}`;
+    // 2. Sequential Problem ID code atomically from persistent store
+    // Guarantees next is ARTIX-000013, then ARTIX-000014, ARTIX-000015 across all serverless invocations
+    const problemCode = await getNextProblemCodeAtomic();
 
     // 3. Parse location fields
     let city = input.city || null;
@@ -762,7 +761,8 @@ export class ArtixRepository {
       created_at: createdAt,
     };
 
-    // Update local cache & persistent storage
+    // Update permanent persistent storage across serverless & local
+    await persistProblemRecord(newProblem);
     store.problems.unshift(newProblem);
     store.analyses.push(newAnalysis);
     store.recalculateCounts();

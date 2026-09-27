@@ -2,14 +2,15 @@ import crypto from 'crypto';
 import { NextRequest } from 'next/server';
 
 export function getAdminCredentials() {
+  const username = process.env.ADMIN_USERNAME?.trim() || '';
+  const password = process.env.ADMIN_PASSWORD?.trim() || '';
   return {
-    username: process.env.ADMIN_USERNAME || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'change-this-password',
+    username,
+    password,
+    isConfigured: Boolean(username && password),
   };
 }
 
-export const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-this-password';
 const getSessionSecret = () => process.env.SESSION_SECRET || 'artix-secure-session-secret-2026-key';
 
 export const COOKIE_NAME = 'artix_admin_token';
