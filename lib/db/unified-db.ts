@@ -15,17 +15,37 @@ let pool: Pool | null = null;
 let isInitialized = false;
 
 /**
+ * Resolves the active production PostgreSQL connection string from any standard Vercel environment variable
+ */
+export function getDatabaseConnectionString(): string | null {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.POSTGRES_URL) return process.env.POSTGRES_URL;
+  if (process.env.POSTGRES_PRISMA_URL) return process.env.POSTGRES_PRISMA_URL;
+  if (process.env.POSTGRES_URL_NON_POOLING) return process.env.POSTGRES_URL_NON_POOLING;
+
+  if (
+    process.env.POSTGRES_HOST &&
+    process.env.POSTGRES_DATABASE &&
+    process.env.POSTGRES_USER &&
+    process.env.POSTGRES_PASSWORD
+  ) {
+    return `postgres://${encodeURIComponent(process.env.POSTGRES_USER)}:${encodeURIComponent(process.env.POSTGRES_PASSWORD)}@${process.env.POSTGRES_HOST}:5432/${process.env.POSTGRES_DATABASE}?sslmode=require`;
+  }
+  return null;
+}
+
+/**
  * Returns whether a real persistent database connection string is provided
  */
 export function isDatabaseConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+  return Boolean(getDatabaseConnectionString());
 }
 
 /**
  * Gets or initializes the PostgreSQL pool
  */
 export function getDbPool(): Pool | null {
-  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const connectionString = getDatabaseConnectionString();
   if (!connectionString) return null;
 
   if (!pool) {
@@ -35,11 +55,12 @@ export function getDbPool(): Pool | null {
       ssl: isLocal ? false : { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 7000,
     });
   }
   return pool;
 }
+
 
 /**
  * Ensures the PostgreSQL tables and baseline counter exist.

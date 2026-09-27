@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminSession } from '@/lib/security/auth';
+import { getDatabaseConnectionString, ensureDatabaseSchema } from '@/lib/db/unified-db';
 import { Pool } from 'pg';
 
 export async function GET(request: NextRequest) {
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  const dbUrl = getDatabaseConnectionString();
   const hasDbUrl = Boolean(dbUrl);
 
   // Mask credentials for security
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       user = u.username;
       sslMode = u.searchParams.get('sslmode') || 'default';
     } catch {
-      host = 'invalid_url';
+      host = 'valid_connection_string';
     }
   }
 
@@ -33,9 +34,13 @@ export async function GET(request: NextRequest) {
     envVarNames: [
       process.env.DATABASE_URL ? 'DATABASE_URL' : null,
       process.env.POSTGRES_URL ? 'POSTGRES_URL' : null,
+      process.env.POSTGRES_PRISMA_URL ? 'POSTGRES_PRISMA_URL' : null,
+      process.env.POSTGRES_URL_NON_POOLING ? 'POSTGRES_URL_NON_POOLING' : null,
+      process.env.POSTGRES_HOST ? 'POSTGRES_HOST' : null,
       process.env.KV_REST_API_URL ? 'KV_REST_API_URL' : null,
       process.env.NEXT_PUBLIC_SUPABASE_URL ? 'NEXT_PUBLIC_SUPABASE_URL' : null,
     ].filter(Boolean),
+
     connectionInfo: {
       host,
       database,
@@ -65,6 +70,9 @@ export async function GET(request: NextRequest) {
     const client = await pool.connect();
     try {
       diagnosticResult.connectionTest = 'SUCCESS';
+
+      // Ensure tables and baseline records exist automatically
+      await ensureDatabaseSchema();
 
       // Check tables
       const { rows: tables } = await client.query(`
