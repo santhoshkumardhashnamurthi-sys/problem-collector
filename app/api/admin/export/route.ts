@@ -1,30 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { excelService } from '@/lib/excel-service';
-import ExcelJS from 'exceljs';
-
-export const dynamic = 'force-dynamic';
+import { verifyAdminSession } from '@/lib/security/auth';
+import { repository } from '@/lib/db/repository';
+import { excelService } from '@/lib/excel/excel-service';
 
 export async function GET(request: NextRequest) {
+  if (!verifyAdminSession(request)) {
+    return NextResponse.json({ error: 'Unauthorized admin access' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
-    const filter = searchParams.get('filter') || 'all'; // all | today | week | month | category
+    const filter = searchParams.get('filter') || 'all';
     const category = searchParams.get('category') || undefined;
 
-    // If unfiltered 'all', stream the master problems.xlsx directly
-    if (filter === 'all' && !category) {
-      const buffer = await excelService.getExcelBuffer();
-      return new NextResponse(new Uint8Array(buffer), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': 'attachment; filename="problems.xlsx"',
-          'Cache-Control': 'no-store, max-age=0',
-        },
-      });
-    }
-
-    // Otherwise, filter records from problems.xlsx
-    let rows = await excelService.getAllProblems();
+    let problems = await repository.getProblems({ limit: 10000 });
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -32,50 +21,24 @@ export async function GET(request: NextRequest) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     if (filter === 'today') {
-      rows = rows.filter((r) => {
-        const [d, m, y] = r.date.split('-').map(Number);
-        return new Date(y, m - 1, d) >= todayStart;
-      });
+      problems = problems.filter((p) => new Date(p.created_at) >= todayStart);
     } else if (filter === 'week') {
-      rows = rows.filter((r) => {
-        const [d, m, y] = r.date.split('-').map(Number);
-        return new Date(y, m - 1, d) >= weekStart;
-      });
+      problems = problems.filter((p) => new Date(p.created_at) >= weekStart);
     } else if (filter === 'month') {
-      rows = rows.filter((r) => {
-        const [d, m, y] = r.date.split('-').map(Number);
-        return new Date(y, m - 1, d) >= monthStart;
-      });
+      problems = problems.filter((p) => new Date(p.created_at) >= monthStart);
     } else if (filter === 'category' && category) {
-      rows = rows.filter((r) => (r.category || '').toLowerCase() === category.toLowerCase());
+      problems = problems.filter(
+        (p) => (p.category_name || '').toLowerCase() === category.toLowerCase()
+      );
     }
 
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Problems');
-    sheet.columns = [
-      { header: 'ID', key: 'id', width: 10 },
-      { header: 'Date', key: 'date', width: 15 },
-      { header: 'Time', key: 'time', width: 15 },
-      { header: 'Category', key: 'category', width: 20 },
-      { header: 'Problem', key: 'problem', width: 50 },
-      { header: 'Location', key: 'location', width: 22 },
-      { header: 'Name', key: 'name', width: 20 },
-      { header: 'Contact', key: 'contact', width: 20 },
-      { header: 'Status', key: 'status', width: 15 },
-    ];
-
-    rows.forEach((r) => {
-      sheet.addRow([r.id, r.date, r.time, r.category, r.problem, r.location, r.name, r.contact, r.status]);
-    });
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `problems_${filter}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const buffer = await excelService.generateProblemsExportBuffer(problems);
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': 'attachment; filename="problems.xlsx"',
         'Cache-Control': 'no-store, max-age=0',
       },
     });

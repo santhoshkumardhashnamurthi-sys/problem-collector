@@ -30,7 +30,7 @@ export default async function ProfilePage() {
                 Anonymous Submissions Enabled
               </span>
               <span className="text-[11px] font-semibold text-neutral-600 bg-neutral-100 px-2.5 py-0.5 rounded-full">
-                Storage Ready
+                Supabase Auth Ready
               </span>
             </div>
           </div>

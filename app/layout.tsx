@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ARTIX — Every Problem Is an Opportunity',
+  title: 'ARTIX – Every Problem Is an Opportunity',
   description:
-    'ARTIX collects real-world problems to understand what people truly need and discover better opportunities. An ARTIX Product by CodeArtix, Founded by Santhoshkumar.',
+    'ARTIX collects real-world problems from real people to discover better ideas, products and opportunities.',
   keywords: [
     'ARTIX',
     'CodeArtix',

@@ -57,11 +57,8 @@ export interface Problem {
   cluster_name?: string | null;
   signal_score?: number;
   submitter_name?: string;
-  name?: string;
-  contact?: string;
-  problem?: string;
-  date?: string;
-  time?: string;
+  synced_to_supabase?: boolean;
+  location?: string | null;
 }
 
 export interface ProblemAIAnalysis {
@@ -157,17 +154,14 @@ export interface DatabaseStats {
 }
 
 export interface SubmitProblemInput {
-  raw_description?: string;
-  problem?: string;
+  raw_description: string;
   category: string;
-  user_type?: string;
-  frequency?: string;
-  location?: string;
+  user_type: string;
+  frequency: string;
+  location?: string | null;
   city?: string;
   area?: string;
   pincode?: string;
-  name?: string;
-  contact?: string;
   is_anonymous?: boolean;
   submitter_id?: string;
 }

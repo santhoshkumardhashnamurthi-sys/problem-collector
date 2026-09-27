@@ -1,538 +1,499 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Navbar } from '@/components/navbar/Navbar';
-import { Footer } from '@/components/footer/Footer';
+import Link from 'next/link';
 import {
-  CheckCircle,
-  XCircle,
+  Shield,
+  Lock,
+  LogOut,
   RefreshCw,
-  FileSpreadsheet,
-  Download,
-  Calendar,
+  Search,
   Layers,
-  Database,
-  CloudUpload,
   AlertCircle,
+  FileSpreadsheet,
 } from 'lucide-react';
-import { Problem, DatabaseStats } from '@/lib/db/schema';
+import { Problem } from '@/lib/db/schema';
+import { CATEGORIES } from '@/lib/validation/problem';
+
+interface AdminStats {
+  totalProblems: number;
+  todayCount: number;
+  weekCount: number;
+  monthCount: number;
+  categoryDistribution: Record<string, number>;
+  whoFacesDistribution?: Record<string, number>;
+  frequencyDistribution?: Record<string, number>;
+}
 
 export default function AdminDashboardPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // Dashboard Data
   const [problems, setProblems] = useState<Problem[]>([]);
-  const [stats, setStats] = useState<DatabaseStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'submissions' | 'excel' | 'audit'>('submissions');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<string | null>(null);
-  const [dbHealth, setDbHealth] = useState<{ configured: boolean; connected: boolean; tablesExist: boolean; error?: string } | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [exporting, setExporting] = useState(false);
 
-  const checkHealth = async () => {
-    try {
-      const res = await fetch('/api/admin/sync').then(r => r.json());
-      if (res.success) setDbHealth(res.health);
-    } catch {}
-  };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncMessage(null);
-    try {
-      const res = await fetch('/api/admin/sync', { method: 'POST' }).then(r => r.json());
-      setSyncMessage(res.message || (res.success ? 'Sync complete' : 'Sync failed'));
-      if (res.health) setDbHealth(res.health);
-      await handleRefresh();
-    } catch (e: any) {
-      setSyncMessage(e?.message || 'Sync request failed');
-    } finally {
-      setSyncing(false);
-    }
-  };
+  // Check initial authentication status
+  useEffect(() => {
+    fetch('/api/admin/check')
+      .then((res) => {
+        if (res.ok) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      })
+      .catch(() => setIsAuthenticated(false));
+  }, []);
 
   const handleRefresh = async () => {
-    setLoading(true);
+    setLoadingData(true);
     try {
-      const [pRes, sRes] = await Promise.all([
-        fetch('/api/problems?sort=most_recent').then(r => r.json()),
-        fetch('/api/stats').then(r => r.json()),
+      const [statsRes, problemsRes] = await Promise.all([
+        fetch('/api/admin/stats').then((r) => r.json()),
+        fetch('/api/admin/problems').then((r) => r.json()),
       ]);
 
-      if (pRes.success) setProblems(pRes.problems);
-      if (sRes.success) setStats(sRes.stats);
-      await checkHealth();
-    } catch (e) {
-      console.error(e);
+      if (statsRes.success) setStats(statsRes.stats);
+      if (problemsRes.success) setProblems(problemsRes.problems);
+    } catch (err) {
+      console.error('Failed to load admin data:', err);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    async function fetchData() {
-      try {
-        const [pRes, sRes] = await Promise.all([
-          fetch('/api/problems?sort=most_recent').then(r => r.json()),
-          fetch('/api/stats').then(r => r.json()),
-        ]);
-
-        if (isMounted) {
-          if (pRes.success) setProblems(pRes.problems);
-          if (sRes.success) setStats(sRes.stats);
-        }
-        await checkHealth();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
+    if (isAuthenticated) {
+      Promise.all([
+        fetch('/api/admin/stats').then((r) => r.json()),
+        fetch('/api/admin/problems').then((r) => r.json()),
+      ])
+        .then(([statsRes, problemsRes]) => {
+          if (isMounted) {
+            if (statsRes.success) setStats(statsRes.stats);
+            if (problemsRes.success) setProblems(problemsRes.problems);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load admin data:', err);
+        });
     }
-    fetchData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated]);
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError(null);
 
-  const totalProblemsCount = stats?.totalProblems ?? problems.length;
-  const totalSubmittersCount = stats?.uniqueSubmitters ?? stats?.uniqueContributors ?? new Set(problems.map(p => p.user_id).filter(Boolean)).size;
-  const todayProblemsCount = problems.filter(p => new Date(p.created_at) >= todayStart).length || stats?.todayProblems || 0;
-  const thisWeekProblemsCount = problems.filter(p => new Date(p.created_at) >= weekStart).length;
-  const thisMonthProblemsCount = problems.filter(p => new Date(p.created_at) >= monthStart).length;
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: loginUsername.trim(),
+          password: loginPassword,
+        }),
+      });
 
-  const availableCategories = Array.from(
-    new Set(problems.map(p => p.category_name).filter(Boolean))
-  ) as string[];
-
-  const handleExport = (filter: string, category?: string) => {
-    setExporting(filter);
-    if (filter === 'all' && !category) {
-      window.location.href = '/api/problems/export';
-    } else {
-      let url = `/api/admin/export?filter=${filter}`;
-      if (category) {
-        url += `&category=${encodeURIComponent(category)}`;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Invalid credentials');
       }
-      window.location.href = url;
+
+      setIsAuthenticated(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed';
+      setLoginError(msg);
+    } finally {
+      setLoginLoading(false);
     }
-    setTimeout(() => setExporting(null), 2000);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col bg-[#F7F4EA] text-[#101114]">
-      <Navbar />
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } finally {
+      setIsAuthenticated(false);
+      setProblems([]);
+      setStats(null);
+    }
+  };
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 w-full">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <div className="inline-flex items-center gap-2 mb-2">
-              <span className="w-5 h-0.5 bg-[#C8FF4D]" />
-              <span className="text-xs font-bold uppercase tracking-widest text-neutral-500">
-                Governance & Moderation
-              </span>
+  const handleExportExcel = (filter: string = 'all') => {
+    setExporting(true);
+    let url = `/api/admin/export?filter=${filter}`;
+    if (selectedCategory && selectedCategory !== 'All') {
+      url += `&category=${encodeURIComponent(selectedCategory)}`;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'problems.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(() => setExporting(false), 1500);
+  };
+
+  // Filter problems by search and category
+  const filteredProblems = problems.filter((p) => {
+    const matchesSearch =
+      !searchQuery ||
+      p.problem_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.raw_description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.user_type && p.user_type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.city && p.city.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesCategory =
+      selectedCategory === 'All' ||
+      (p.category_name && p.category_name.toLowerCase() === selectedCategory.toLowerCase());
+
+    return matchesSearch && matchesCategory;
+  });
+
+  // Loading state while checking auth
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-[#08131A] text-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#C8FF3D] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-neutral-400 font-mono tracking-wider">Verifying admin session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 1. Login Gate View
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#08131A] text-white flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
+        {/* Ambient glow */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-[#C8FF3D]/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-[#101820] border border-neutral-800 rounded-3xl p-8 shadow-2xl relative z-10">
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-[#08131A] border border-neutral-800 flex items-center justify-center text-[#C8FF3D]">
+              <Lock className="w-6 h-6" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-[#101114] tracking-tight">
-              Admin Control Center
-            </h1>
-            <p className="text-xs sm:text-sm text-neutral-600 mt-1">
-              Cluster synthesis, AI classification review, and content moderation.
+          </div>
+
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-extrabold tracking-tight">ARTIX Admin Portal</h1>
+            <p className="text-xs text-neutral-400 mt-1">
+              Authorized personnel only. Please sign in to manage problem collections.
             </p>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            className="self-start sm:self-auto px-4 py-2 bg-white rounded-xl border border-neutral-200 text-xs font-bold hover:bg-neutral-50 transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh Data
-          </button>
-        </div>
+          {loginError && (
+            <div className="mb-6 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
 
-        {/* Database Status & Synchronization Banner */}
-        <div className="mb-6 p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-              dbHealth?.tablesExist
-                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                : 'bg-amber-50 text-amber-600 border border-amber-200'
-            }`}>
-              <Database className="w-4 h-4" />
-            </div>
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#101114]">
-                  Storage Mode:
-                </span>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  dbHealth?.tablesExist
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${dbHealth?.connected !== false ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                  Excel File Storage Active
-                </span>
-              </div>
-              <p className="text-[11px] text-neutral-500 mt-0.5">
-                All problems are persistently stored in data/problems.xlsx with zero database dependencies.
-              </p>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Username
+              </label>
+              <input
+                type="text"
+                required
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="admin"
+                className="w-full px-4 py-2.5 rounded-xl bg-[#08131A] border border-neutral-700 text-sm text-white focus:outline-none focus:border-[#C8FF3D] transition-colors"
+              />
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 rounded-xl bg-[#08131A] border border-neutral-700 text-sm text-white focus:outline-none focus:border-[#C8FF3D] transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full mt-2 py-3 rounded-xl bg-[#C8FF3D] hover:bg-[#DFFF73] disabled:bg-neutral-600 text-[#08131A] text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            >
+              {loginLoading ? (
+                <span>Authenticating...</span>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4" />
+                  <span>Enter Control Center</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-neutral-800 text-center">
+            <Link href="/" className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">
+              ← Return to public website
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Authenticated Admin Dashboard
+  return (
+    <div className="min-h-screen bg-[#F7F4E8] text-[#08131A] flex flex-col">
+      {/* Admin Top Bar */}
+      <header className="bg-[#08131A] text-white border-b border-neutral-800 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-2">
+              <svg viewBox="0 0 36 36" fill="none" className="w-7 h-7">
+                <path d="M18 4L4 32H12L18 19L24 32H32L18 4Z" fill="#C8FF3D" />
+                <path d="M18 13L11 28H15L18 21L21 28H25L18 13Z" fill="#08131A" />
+              </svg>
+              <span className="font-extrabold tracking-widest text-white text-base">ARTIX</span>
+            </Link>
+            <span className="text-neutral-500">/</span>
+            <span className="px-2.5 py-0.5 rounded-md bg-neutral-800 text-[11px] font-mono text-[#C8FF3D] border border-neutral-700">
+              Admin Control Center
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {syncMessage && (
-              <span className="text-[11px] font-medium text-neutral-600 bg-neutral-50 px-2.5 py-1 rounded-lg border border-neutral-200">
-                {syncMessage}
-              </span>
-            )}
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="px-3 py-2 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-neutral-800 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              onClick={() => handleExportExcel('all')}
+              disabled={exporting}
+              className="px-3.5 py-1.5 rounded-lg bg-[#C8FF3D] hover:bg-[#DFFF73] text-[#08131A] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
-              <CloudUpload className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Verifying...' : 'Verify Excel Storage'}
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>{exporting ? 'Generating...' : 'Export Excel'}</span>
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              disabled={loadingData}
+              className="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors cursor-pointer"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingData ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-rose-950/40 hover:text-rose-400 text-neutral-300 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Top Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-            <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Total Problems</span>
-            <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">
-              {stats?.totalProblems || 0}
-            </div>
-            <span className="text-[10px] text-neutral-400">Stored in problems.xlsx</span>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-            <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Total Submitters</span>
-            <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">
-              {stats?.uniqueSubmitters ?? stats?.uniqueContributors ?? 0}
-            </div>
-            <span className="text-[10px] text-neutral-400">Unique contributors</span>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-            <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Today&apos;s Problems</span>
-            <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">
-              {stats?.todayProblems || 0}
-            </div>
-            <span className="text-[10px] text-neutral-400">Submitted today</span>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-            <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Active Categories</span>
-            <div className="text-2xl font-extrabold text-emerald-600 mt-1 font-mono">
-              {stats?.categoriesCount || 0}
-            </div>
-            <span className="text-[10px] text-neutral-400">Covered sectors</span>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex gap-2 border-b border-neutral-200 pb-3 mb-6">
-          <button
-            onClick={() => setActiveTab('submissions')}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'submissions'
-                ? 'bg-[#101114] text-white'
-                : 'bg-white text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            Recent Problems
-          </button>
-          <button
-            onClick={() => setActiveTab('excel')}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activeTab === 'excel'
-                ? 'bg-[#101114] text-white'
-                : 'bg-white text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-            Excel Reports
-          </button>
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'audit'
-                ? 'bg-[#101114] text-white'
-                : 'bg-white text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            Security & Audit Trail
-          </button>
-        </div>
-
-        {/* Submissions Table */}
-        {activeTab === 'submissions' && (
-          <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-[#101114]">Recent Problems</h3>
-                <p className="text-[11px] text-neutral-500">Live records from data/problems.xlsx</p>
-              </div>
-              <span className="text-xs text-neutral-500 font-mono">{problems.length} records</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-100">
-                  <tr>
-                    <th className="p-3.5 whitespace-nowrap">Problem ID</th>
-                    <th className="p-3.5 whitespace-nowrap">Title</th>
-                    <th className="p-3.5 whitespace-nowrap">Description</th>
-                    <th className="p-3.5 whitespace-nowrap">Category</th>
-                    <th className="p-3.5 whitespace-nowrap">Submitter</th>
-                    <th className="p-3.5 whitespace-nowrap">Created Date/Time</th>
-                    <th className="p-3.5 whitespace-nowrap">Status</th>
-                    <th className="p-3.5 whitespace-nowrap">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {problems.map(p => (
-                    <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-neutral-700 whitespace-nowrap">
-                        {p.problem_code}
-                      </td>
-                      <td className="p-3.5 max-w-xs truncate font-medium text-neutral-800" title={p.normalized_problem || p.raw_description}>
-                        {p.normalized_problem || p.raw_description}
-                      </td>
-                      <td className="p-3.5 max-w-xs truncate text-neutral-600 italic" title={p.raw_description}>
-                        &ldquo;{p.raw_description}&rdquo;
-                      </td>
-                      <td className="p-3.5 whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-[#C8FF4D]/30 text-emerald-900 rounded font-semibold text-[11px]">
-                          {p.category_name || 'General'}
-                        </span>
-                      </td>
-                      <td className="p-3.5 font-medium text-neutral-700 whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-neutral-100 rounded text-[11px]">
-                          {p.submitter_name || (p.is_anonymous ? 'Anonymous' : 'Community')}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-neutral-500 whitespace-nowrap font-mono text-[11px]">
-                        {new Date(p.created_at).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="p-3.5 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          p.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : p.status === 'flagged'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-neutral-100 text-neutral-700'
-                        }`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => alert(`Problem ${p.problem_code} verified.`)}
-                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                            title="Verify"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => alert(`Problem ${p.problem_code} flagged for review.`)}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
-                            title="Flag as Spam"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Excel Reports Section */}
-        {activeTab === 'excel' && (
-          <div className="space-y-8">
-            {/* Excel Metric Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Total Problems</span>
-                <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">{totalProblemsCount}</div>
-                <span className="text-[10px] text-neutral-400">All submissions</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Total Submitters</span>
-                <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">{totalSubmittersCount}</div>
-                <span className="text-[10px] text-neutral-400">Unique contributors</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">Today&apos;s Problems</span>
-                <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">{todayProblemsCount}</div>
-                <span className="text-[10px] text-neutral-400">Since 00:00 UTC</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">This Week&apos;s Problems</span>
-                <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">{thisWeekProblemsCount}</div>
-                <span className="text-[10px] text-neutral-400">Past 7 days</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm col-span-2 sm:col-span-1">
-                <span className="text-neutral-500 text-xs font-semibold uppercase tracking-wider">This Month&apos;s Problems</span>
-                <div className="text-2xl font-extrabold text-[#101114] mt-1 font-mono">{thisMonthProblemsCount}</div>
-                <span className="text-[10px] text-neutral-400">Current calendar month</span>
-              </div>
-            </div>
-
-            {/* Excel Export Controls Card */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-neutral-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                    <h3 className="text-base font-bold text-[#101114]">Problem Collector Excel Reports</h3>
-                  </div>
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Export verified problem records to formatted Excel spreadsheets (<code className="font-mono text-[11px] bg-neutral-100 px-1 py-0.5 rounded">data/problems.xlsx</code>).
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200/60">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Excel Storage Active
-                </div>
-              </div>
-
-              {/* Action Buttons Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <button
-                  onClick={() => handleExport('all')}
-                  disabled={exporting !== null}
-                  className="flex items-center justify-center gap-2 px-4 py-3.5 bg-[#101114] text-white rounded-2xl font-bold text-xs hover:bg-neutral-800 transition-all shadow-sm hover:shadow active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-[#C8FF4D]" />
-                  {exporting === 'all' ? 'Generating...' : 'Export All Problems'}
-                </button>
-
-                <button
-                  onClick={() => handleExport('today')}
-                  disabled={exporting !== null}
-                  className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white text-neutral-800 border border-neutral-200 rounded-2xl font-bold text-xs hover:bg-neutral-50 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                >
-                  <Calendar className="w-4 h-4 text-emerald-600" />
-                  {exporting === 'today' ? 'Generating...' : 'Export Today'}
-                </button>
-
-                <button
-                  onClick={() => handleExport('week')}
-                  disabled={exporting !== null}
-                  className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white text-neutral-800 border border-neutral-200 rounded-2xl font-bold text-xs hover:bg-neutral-50 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                >
-                  <Calendar className="w-4 h-4 text-blue-600" />
-                  {exporting === 'week' ? 'Generating...' : 'Export This Week'}
-                </button>
-
-                <button
-                  onClick={() => handleExport('month')}
-                  disabled={exporting !== null}
-                  className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white text-neutral-800 border border-neutral-200 rounded-2xl font-bold text-xs hover:bg-neutral-50 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                >
-                  <Calendar className="w-4 h-4 text-purple-600" />
-                  {exporting === 'month' ? 'Generating...' : 'Export This Month'}
-                </button>
-              </div>
-
-              {/* Export by Category */}
-              <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="text-xs font-bold text-neutral-700 whitespace-nowrap flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-neutral-500" />
-                  Export by Category:
-                </div>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-black"
-                >
-                  <option value="">Select a Category ({availableCategories.length} available)</option>
-                  {availableCategories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => selectedCategory && handleExport('category', selectedCategory)}
-                  disabled={!selectedCategory || exporting !== null}
-                  className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Export by Category
-                </button>
-              </div>
-
-              {/* Excel Specifications Summary Card */}
-              <div className="bg-neutral-50 rounded-2xl p-5 border border-neutral-100 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Worksheets Included in Master Excel</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs text-neutral-600">
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">1. ALL PROBLEMS</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Every verified submission, sorted newest first with S.No, Problem ID, Date, Time, Title, Description, Submitter, and Status.</p>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">2. CATEGORY SUMMARY</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Summary table of total problems aggregated by sector (Education, Transport, Technology, etc.).</p>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">3. DAILY SUMMARY</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Submission velocity breakdown grouped by Date (DD-MM-YYYY).</p>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">4. STATUS SUMMARY</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Status breakdown (ACTIVE, FLAGGED, RESOLVED, ARCHIVED).</p>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">5. MONTHLY SUMMARY</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Monthly trends grouped by calendar month.</p>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-neutral-200/70">
-                    <p className="font-bold text-neutral-900 font-mono">6. CATEGORY WORKSHEETS</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">Dedicated standalone sheets for each category (Transport, Healthcare, etc.) created automatically.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Audit Trail */}
-        {activeTab === 'audit' && (
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#101114]">System Security & Audit Activity</h3>
-            <p className="text-xs text-neutral-500">
-              Immutable log of admin actions, AI classifications, and cluster assignments.
+      {/* Main Admin Dashboard Body */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+        
+        {/* Header Greeting */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Problem Ingestion Overview
+            </h1>
+            <p className="text-xs sm:text-sm text-neutral-600 mt-1">
+              Internal repository monitoring and Excel export hub.
             </p>
-            <div className="space-y-2 font-mono text-xs text-neutral-600 bg-neutral-900 text-neutral-300 p-4 rounded-2xl">
-              <p>[SYSTEM_INIT] Excel storage engine initialized at data/problems.xlsx.</p>
-              <p>[STORAGE_ENGINE] Zero-database file persistence active.</p>
-              <p>[AI_PROVIDER] Heuristic and OpenAI hybrid provider registered.</p>
-              <p>[REALTIME] SSE broadcast channel online.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-neutral-600">Storage Online</span>
+          </div>
+        </div>
+
+        {/* 4 Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+            <span className="text-neutral-500 text-xs font-semibold">Total Problems</span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-[#08131A] mt-1">
+              {stats?.totalProblems || problems.length}
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+            <span className="text-neutral-500 text-xs font-semibold">Today&apos;s Problems</span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-[#08131A] mt-1">
+              {stats?.todayCount ?? 0}
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+            <span className="text-neutral-500 text-xs font-semibold">This Week (7d)</span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-[#08131A] mt-1">
+              {stats?.weekCount ?? 0}
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+            <span className="text-neutral-500 text-xs font-semibold">This Month (30d)</span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-[#08131A] mt-1">
+              {stats?.monthCount ?? 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Category Breakdown Section */}
+        {stats?.categoryDistribution && Object.keys(stats.categoryDistribution).length > 0 && (
+          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm mb-8">
+            <h3 className="text-sm font-bold text-[#08131A] mb-4 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-emerald-600" />
+              <span>Category Distribution</span>
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              {CATEGORIES.map((cat) => {
+                const count = stats.categoryDistribution[cat] || 0;
+                return (
+                  <div
+                    key={cat}
+                    onClick={() => setSelectedCategory(selectedCategory === cat ? 'All' : cat)}
+                    className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                      selectedCategory === cat
+                        ? 'border-[#08131A] bg-[#08131A] text-white'
+                        : 'border-neutral-200 bg-neutral-50 hover:bg-neutral-100/80 text-neutral-800'
+                    }`}
+                  >
+                    <span className="text-[11px] font-semibold block truncate">{cat}</span>
+                    <span className="text-lg font-extrabold block mt-0.5">{count}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* Problems Table Card */}
+        <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden mb-8">
+          {/* Table Controls */}
+          <div className="p-4 sm:p-5 border-b border-neutral-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search problem code, description, location..."
+                  className="w-full pl-9 pr-3 py-2 bg-neutral-50 rounded-xl border border-neutral-200 text-xs focus:outline-none focus:border-[#08131A]"
+                />
+              </div>
+
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3 py-2 bg-neutral-50 rounded-xl border border-neutral-200 text-xs font-semibold text-neutral-700 focus:outline-none focus:border-[#08131A]"
+              >
+                <option value="All">All Categories</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <span className="text-xs text-neutral-500 font-mono">
+                Showing {filteredProblems.length} of {problems.length} records
+              </span>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-200">
+                <tr>
+                  <th className="p-3.5">Problem ID</th>
+                  <th className="p-3.5">Category</th>
+                  <th className="p-3.5">Problem Description</th>
+                  <th className="p-3.5">Who Faces This</th>
+                  <th className="p-3.5">Frequency</th>
+                  <th className="p-3.5">Location</th>
+                  <th className="p-3.5">Submitted Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {filteredProblems.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-neutral-500">
+                      No problems match your current filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProblems.map((p) => {
+                    const dateFormatted = new Date(p.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    });
+                    const timeFormatted = new Date(p.created_at).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                    const loc = p.location || [p.area, p.city].filter(Boolean).join(', ') || 'Not specified';
+
+                    return (
+                      <tr key={p.id} className="hover:bg-neutral-50/80 transition-colors">
+                        <td className="p-3.5 font-mono font-bold text-[#08131A] whitespace-nowrap">
+                          {p.problem_code}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap">
+                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-800 rounded font-semibold text-[11px] border border-neutral-200">
+                            {p.category_name}
+                          </span>
+                        </td>
+                        <td className="p-3.5 max-w-sm text-neutral-800 leading-relaxed">
+                          {p.raw_description}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap text-neutral-600">
+                          {p.user_type || 'Everyone'}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap text-neutral-600 font-mono text-[11px]">
+                          {p.frequency || 'Daily'}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap text-neutral-600">
+                          {loc}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap text-neutral-500 font-mono text-[11px]">
+                          {dateFormatted} {timeFormatted}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
       </main>
-
-      <Footer />
     </div>
   );
 }

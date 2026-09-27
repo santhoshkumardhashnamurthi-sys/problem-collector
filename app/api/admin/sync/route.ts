@@ -1,35 +1,40 @@
 import { NextResponse } from 'next/server';
 import { repository } from '@/lib/db/repository';
-import { excelService } from '@/lib/excel-service';
-
-export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const health = await repository.checkStorageHealth();
+    const health = await repository.checkSupabaseHealth();
     return NextResponse.json({
       success: true,
       health,
-      message: 'Excel storage (data/problems.xlsx) is online and active.',
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Storage check failed';
+    const message = error instanceof Error ? error.message : 'Health check failed';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
 export async function POST() {
   try {
-    await excelService.ensureInitialized();
-    const rows = await excelService.getAllProblems();
+    const health = await repository.checkSupabaseHealth();
+    if (!health.tablesExist) {
+      return NextResponse.json({
+        success: false,
+        health,
+        message:
+          'Cannot sync yet: tables have not been created in Supabase. Please run supabase/apply_to_supabase.sql in your Supabase SQL Editor.',
+      }, { status: 400 });
+    }
+
+    const syncResult = await repository.syncUnsyncedToSupabase();
     return NextResponse.json({
       success: true,
-      health: { configured: true, connected: true, tablesExist: true },
-      syncedCount: rows.length,
-      message: `Excel storage verified: ${rows.length} problem(s) in data/problems.xlsx.`,
+      health,
+      ...syncResult,
+      message: `Successfully synchronized ${syncResult.syncedCount} problem(s) to Supabase.`,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Verification failed';
+    const message = error instanceof Error ? error.message : 'Sync failed';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
