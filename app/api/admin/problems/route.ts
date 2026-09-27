@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminSession } from '@/lib/security/auth';
-import { repository } from '@/lib/db/repository';
+import { getProblemsFromDatabase } from '@/lib/db/unified-db';
 
 export async function GET(request: NextRequest) {
   if (!verifyAdminSession(request)) {
@@ -14,12 +14,11 @@ export async function GET(request: NextRequest) {
     const user_type = searchParams.get('user_type') || undefined;
     const frequency = searchParams.get('frequency') || undefined;
 
-    const problems = await repository.getProblems({
+    const problems = await getProblemsFromDatabase({
       search,
       category,
       user_type,
       frequency,
-      sort: 'most_recent',
       limit: 1000,
     });
 
@@ -33,3 +32,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+

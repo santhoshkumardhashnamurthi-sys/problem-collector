@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { repository } from '@/lib/db/repository';
+import { submitProblemToDatabase, getProblemsFromDatabase } from '@/lib/db/unified-db';
 import { excelService } from '@/lib/excel/excel-service';
 import { problemSubmissionSchema } from '@/lib/validation/problem';
 import { checkRateLimit } from '@/lib/security/rate-limit';
@@ -21,8 +21,8 @@ export async function GET() {
 
 /**
  * Main public problem submission endpoint.
- * Accepts problem friction report, validates, rate limits, saves to DB & Excel,
- * and returns success with the generated problemCode (e.g. ARTIX-000001).
+ * Accepts problem friction report, validates, rate limits, saves to ONE persistent database,
+ * and returns success with the generated problemCode (e.g. ARTIX-000013).
  */
 export async function POST(request: NextRequest) {
   // 1. IP Rate Limiting (e.g. 10 per hour per IP)
@@ -61,20 +61,37 @@ export async function POST(request: NextRequest) {
 
     const validated = problemSubmissionSchema.parse(normalizedInput);
 
-    const result = await repository.submitProblem(validated);
+    // Save to the single unified persistent database and get atomic sequential ID
+    const result = await submitProblemToDatabase(validated);
 
-    // Sync to master Excel file on server
+    // Sync to master Excel file for administration
     try {
-      await excelService.appendProblem(result.problem, () => repository.getProblems({ limit: 10000 }));
+      await excelService.appendProblem(
+        {
+          id: result.problemId,
+          problem_code: result.problemCode,
+          user_id: null,
+          submitter_name: 'Anonymous Contributor',
+          raw_description: validated.raw_description,
+          category_name: validated.category,
+          user_type: validated.user_type,
+          frequency: validated.frequency,
+          severity: 'Moderate',
+          location: validated.location || null,
+          created_at: new Date().toISOString(),
+          status: 'active',
+        } as any,
+        () => getProblemsFromDatabase({ limit: 10000 })
+      );
     } catch (excelErr) {
       console.warn('[EXCEL_SYNC_WARNING] Master Excel update notice:', excelErr);
     }
 
-    // Return clean public confirmation - NEVER expose internal database details or other records
+    // Return clean public confirmation - ONLY the ID returned and saved by the database
     return NextResponse.json({
       success: true,
       message: 'Problem submitted successfully',
-      problemCode: result.problem.problem_code,
+      problemCode: result.problemCode,
     });
   } catch (error: unknown) {
     if (error instanceof ZodError) {
@@ -89,3 +106,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
+

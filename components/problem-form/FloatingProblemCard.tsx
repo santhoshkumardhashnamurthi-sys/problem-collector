@@ -75,7 +75,11 @@ export function FloatingProblemCard({ onProblemSubmitted }: FloatingProblemCardP
         // Fallback if canvas is not available
       }
 
-      setSubmittedCode(res.problemCode || 'ARTIX-000001');
+      if (!res.problemCode) {
+        throw new Error('Server did not return a valid Problem ID.');
+      }
+
+      setSubmittedCode(res.problemCode);
       reset();
       if (onProblemSubmitted) onProblemSubmitted();
     } catch (err: unknown) {
