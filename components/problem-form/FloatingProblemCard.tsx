@@ -75,11 +75,12 @@ export function FloatingProblemCard({ onProblemSubmitted }: FloatingProblemCardP
         // Fallback if canvas is not available
       }
 
-      if (!res.problemCode) {
+      const problemIdentifier = res.problemCode || res.problemId;
+      if (!problemIdentifier) {
         throw new Error('Server did not return a valid Problem ID.');
       }
 
-      setSubmittedCode(res.problemCode);
+      setSubmittedCode(problemIdentifier);
       reset();
       if (onProblemSubmitted) onProblemSubmitted();
     } catch (err: unknown) {

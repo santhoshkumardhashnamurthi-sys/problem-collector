@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminSession } from '@/lib/security/auth';
-import { getProblemsFromDatabase } from '@/lib/db/unified-db';
+import { getProblemsFromMongoDB } from '@/lib/db/mongodb';
 import { excelService } from '@/lib/excel/excel-service';
 
 export async function GET(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const filter = searchParams.get('filter') || 'all';
     const category = searchParams.get('category') || undefined;
 
-    let problems = await getProblemsFromDatabase({ limit: 10000 });
+    let problems = await getProblemsFromMongoDB({ limit: 10000 });
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

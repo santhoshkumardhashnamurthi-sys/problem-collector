@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { submitProblemToDatabase, getProblemsFromDatabase } from '@/lib/db/unified-db';
+import { submitProblemToMongoDB, getProblemsFromMongoDB } from '@/lib/db/mongodb';
 import { excelService } from '@/lib/excel/excel-service';
 import { problemSubmissionSchema } from '@/lib/validation/problem';
 import { checkRateLimit } from '@/lib/security/rate-limit';
@@ -21,7 +21,7 @@ export async function GET() {
 
 /**
  * Main public problem submission endpoint.
- * Accepts problem friction report, validates, rate limits, saves to ONE persistent database,
+ * Accepts problem friction report, validates, rate limits, saves to MongoDB Atlas,
  * and returns success with the generated problemCode (e.g. ARTIX-000013).
  */
 export async function POST(request: NextRequest) {
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
 
     const validated = problemSubmissionSchema.parse(normalizedInput);
 
-    // Save to the single unified persistent database and get atomic sequential ID
-    const result = await submitProblemToDatabase(validated);
+    // Save directly to MongoDB Atlas and get atomic sequential unique Problem ID
+    const result = await submitProblemToMongoDB(validated);
 
-    // Sync to master Excel file for administration
+    // Sync to master Excel file for administration (best-effort)
     try {
       await excelService.appendProblem(
         {
@@ -81,17 +81,18 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
           status: 'active',
         } as any,
-        () => getProblemsFromDatabase({ limit: 10000 })
+        () => getProblemsFromMongoDB({ limit: 10000 })
       );
     } catch (excelErr) {
       console.warn('[EXCEL_SYNC_WARNING] Master Excel update notice:', excelErr);
     }
 
-    // Return clean public confirmation - ONLY the ID returned and saved by the database
+    // Return clean public confirmation - ONLY the ID returned and saved by MongoDB Atlas
     return NextResponse.json({
       success: true,
       message: 'Problem submitted successfully',
       problemCode: result.problemCode,
+      problemId: result.problemId,
     });
   } catch (error: unknown) {
     if (error instanceof ZodError) {
@@ -102,8 +103,11 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error('[API_ERROR] Problem submission failed:', error);
-    const message = error instanceof Error ? error.message : 'Failed to submit problem';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Unable to submit your problem right now. Please try again.' },
+      { status: 500 }
+    );
   }
 }
+
 

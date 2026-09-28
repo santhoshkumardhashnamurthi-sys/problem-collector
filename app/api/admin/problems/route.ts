@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminSession } from '@/lib/security/auth';
-import { getProblemsFromDatabase } from '@/lib/db/unified-db';
+import { getProblemsFromMongoDB } from '@/lib/db/mongodb';
 
 export async function GET(request: NextRequest) {
   if (!verifyAdminSession(request)) {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const user_type = searchParams.get('user_type') || undefined;
     const frequency = searchParams.get('frequency') || undefined;
 
-    const problems = await getProblemsFromDatabase({
+    const problems = await getProblemsFromMongoDB({
       search,
       category,
       user_type,
@@ -28,8 +28,12 @@ export async function GET(request: NextRequest) {
       problems,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch admin problems';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error('[ADMIN_API_ERROR] Failed to fetch admin problems:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch admin problems from database' },
+      { status: 500 }
+    );
   }
 }
+
 

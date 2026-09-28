@@ -26,6 +26,12 @@ import {
   persistProblemRecord,
   getPersistentProblems,
 } from './persistent-store';
+import {
+  isMongoConfigured,
+  getProblemsFromMongoDB,
+  getMongoDatabaseStats,
+  submitProblemToMongoDB,
+} from './mongodb';
 
 /**
  * Executes a promise with an explicit timeout to prevent hanging on remote networks
@@ -126,6 +132,24 @@ export class ArtixRepository {
   }
 
   async getDatabaseStats(): Promise<DatabaseStats> {
+    if (isMongoConfigured()) {
+      try {
+        const stats = await getMongoDatabaseStats();
+        return {
+          totalProblems: stats.totalProblems,
+          uniqueContributors: stats.totalProblems,
+          uniqueSubmitters: stats.totalProblems,
+          todayProblems: stats.todayCount,
+          categoriesCount: Object.keys(stats.categoryDistribution).length,
+          locationsCovered: 5,
+          categoryCounts: stats.categoryDistribution,
+          latestUpdated: new Date().toISOString(),
+        };
+      } catch (e) {
+        console.warn('[Repository] MongoDB getDatabaseStats notice:', e);
+      }
+    }
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -283,6 +307,20 @@ export class ArtixRepository {
     sort?: ProblemSortOption;
     limit?: number;
   }): Promise<Problem[]> {
+    if (isMongoConfigured()) {
+      try {
+        return await getProblemsFromMongoDB({
+          search: filters?.search,
+          category: filters?.category,
+          user_type: filters?.user_type,
+          frequency: filters?.frequency,
+          limit: filters?.limit,
+        });
+      } catch (e) {
+        console.warn('[Repository] MongoDB getProblems notice:', e);
+      }
+    }
+
     if (this.hasSupabase()) {
       const supabase = createAdminClient();
       if (supabase) {

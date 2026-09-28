@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminSession } from '@/lib/security/auth';
-import { getDatabaseStatsUnified } from '@/lib/db/unified-db';
+import { getMongoDatabaseStats } from '@/lib/db/mongodb';
 
 export async function GET(request: NextRequest) {
   if (!verifyAdminSession(request)) {
@@ -8,15 +8,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stats = await getDatabaseStatsUnified();
+    const stats = await getMongoDatabaseStats();
 
     return NextResponse.json({
       success: true,
       stats,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to compute admin statistics';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error('[ADMIN_STATS_ERROR] Failed to compute admin statistics:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to compute admin statistics' },
+      { status: 500 }
+    );
   }
 }
+
 
